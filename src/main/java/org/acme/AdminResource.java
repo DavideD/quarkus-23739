@@ -22,6 +22,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 
 import io.quarkus.security.Authenticated;
+import org.jboss.logging.Logger;
 
 /**
  * @author <a href="mailto:psilva@redhat.com">Pedro Igor</a>
@@ -29,11 +30,14 @@ import io.quarkus.security.Authenticated;
 @Path("/api/admin")
 @Authenticated
 public class AdminResource {
+    private static final Logger log = Logger.getLogger(AdminResource.class);
+    private static int REQUEST_NUM = 0;
 
     @GET
     @RolesAllowed("admin")
     @Produces(MediaType.TEXT_PLAIN)
     public String admin() {
+        log.info("Processing request no:  " + ++REQUEST_NUM);
         return "granted";
     }
 }
