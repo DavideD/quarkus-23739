@@ -2,7 +2,12 @@ package org.acme;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.context.control.ActivateRequestContext;
+import javax.inject.Inject;
 import java.util.List;
+
+import org.hibernate.reactive.mutiny.Mutiny;
+
+import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.runtime.ReactiveTransactional;
 import io.quarkus.oidc.runtime.OidcJwtCallerPrincipal;
 import io.quarkus.security.identity.AuthenticationRequestContext;
@@ -19,13 +24,15 @@ public class RolesAugmentor implements SecurityIdentityAugmentor {
 
     private static final String EMAIL_CLAIM_NAME = "https://popagile.com/email";
 
+    @Inject
+    Mutiny.SessionFactory factory;
+
     @Override
     public int priority() {
         return SecurityIdentityAugmentor.super.priority();
     }
 
     @Override
-    @ReactiveTransactional
     @ActivateRequestContext
     public Uni<SecurityIdentity> augment(SecurityIdentity identity, AuthenticationRequestContext context) {
         if (identity.isAnonymous()) {
@@ -46,17 +53,29 @@ public class RolesAugmentor implements SecurityIdentityAugmentor {
 
         // The actual details here don't matter. Any database request will
         // trigger the 4 and out behavior. So I changed it to run count(*) to make it simpler.
-        return PopUser.<PopUser>count().onItem().transform(item -> {
-                QuarkusSecurityIdentity.Builder builder = QuarkusSecurityIdentity.builder()
-                    .setPrincipal(identity.getPrincipal())
-                    .addAttributes(identity.getAttributes())
-                    .addCredentials(identity.getCredentials())
-                    .addRoles(identity.getRoles());
+        return count()
+                .map( item -> {
+                          QuarkusSecurityIdentity.Builder builder = QuarkusSecurityIdentity.builder()
+                                  .setPrincipal( identity.getPrincipal() )
+                                  .addAttributes( identity.getAttributes() )
+                                  .addCredentials( identity.getCredentials() )
+                                  .addRoles( identity.getRoles() );
 
-                List.of("admin").stream().forEach(role -> builder.addRole(role));
+                          List.of( "admin" ).stream().forEach( role -> builder.addRole( role ) );
 
-                return builder.build();
-            }
-        );
+                          return builder.build();
+                      }
+                );
+    }
+
+    private Uni<Long> count() {
+//        return factory.withSession( this::count );
+        return PopUser.count();
+    }
+
+    private Uni<Long> count(Mutiny.Session session) {
+        return session
+                .createQuery( "select count(u) from PopUser u", Long.class )
+                .getSingleResult();
     }
 }
